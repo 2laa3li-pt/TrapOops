@@ -3,10 +3,17 @@ name: DevSecOps Pipeline
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build-and-scan:
     runs-on: ubuntu-latest
+    # بنضيف الصلاحيات دي عشان الـ Action يقدر يكتب في تبويب الـ Security
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     
     steps:
     - name: Checkout code
@@ -16,9 +23,15 @@ jobs:
       run: |
         docker build -t trapoops-app .
 
-    - name: Run Trivy vulnerability scanner
+    - name: Run Trivy vulnerability scanner (SARIF mode)
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: 'trapoops-app'
-        format: 'table'
+        format: 'sarif' # التنسيق اللي بيفهمه جيت هاب
+        output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
