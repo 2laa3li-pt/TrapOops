@@ -5,33 +5,78 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  schedule:
+    - cron: '30 18 * * 1' # فحص دوري كل أسبوع
 
 jobs:
-  build-and-scan:
+  # 1. المرحلة الأولى: فحص الكود (SAST) والأسرار
+  sast_scans:
+    name: SAST Scans (CodeQL & Gitleaks)
     runs-on: ubuntu-latest
-    # بنضيف الصلاحيات دي عشان الـ Action يقدر يكتب في تبويب الـ Security
     permissions:
       security-events: write
       actions: read
       contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # مهم جداً لـ Gitleaks عشان يفحص تاريخ الكود
+
+      # فحص تسريب البيانات الحساسة (Secrets)
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # فحص الكود باستخدام CodeQL
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: 'javascript'
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # 2. المرحلة الثانية: فحص الـ Docker Image (SCA)
+  container_security:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t trapoops-image .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'trapoops-image'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy'
+
+  # 3. المرحلة الثالثة: فحص الموقع وهو شغال (DAST)
+  dast_scan:
+    name: DAST Scan (OWASP ZAP)
+    runs-on: ubuntu-latest
+    # بنخليها تستنى لما المراحل اللي فاتت تخلص
+    needs: [sast_scans, container_security]
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Build Docker Image
-      run: |
-        docker build -t trapoops-app .
-
-    - name: Run Trivy vulnerability scanner (SARIF mode)
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: 'trapoops-app'
-        format: 'sarif' # التنسيق اللي بيفهمه جيت هاب
-        output: 'trivy-results.sarif'
-        severity: 'CRITICAL,HIGH'
-
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'trivy-results.sarif'
+      - name: ZAP Scan
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          # الرابط اللي طلعناه من Railway في صورة image_d4f47c.png
+          target: 'https://trapoops-production.up.railway.app'
