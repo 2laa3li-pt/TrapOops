@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # 1. مراقبة مكتبات الـ npm (الخاصة بتطبيق الـ Juice Shop)
+  - package-ecosystem: "npm"
+    directory: "/" 
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+
+  # 2. مراقبة الـ GitHub Actions (عشان الـ Pipeline نفسها تفضل حديثة)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly" 
