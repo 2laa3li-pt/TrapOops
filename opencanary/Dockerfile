@@ -12,6 +12,6 @@ RUN pip install --no-cache-dir opencanary
 RUN mkdir -p /root/.opencanary/
 COPY opencanary.conf /root/.opencanary/opencanary.conf
 
-EXPOSE 21 22 80
+EXPOSE 2121 2222 8020
 
 CMD ["opencanaryd", "--dev"]
