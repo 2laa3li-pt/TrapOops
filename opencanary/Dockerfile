@@ -14,4 +14,4 @@ COPY opencanary.conf /root/.opencanary/opencanary.conf
 
 EXPOSE 2121 2222 8020
 
-CMD ["opencanaryd", "--dev"]
+CMD ["opencanaryd", "--start"]
